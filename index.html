@@ -23,14 +23,19 @@
     --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
+  html, body { margin: 0; }
   body { font-family: var(--font); color: var(--ink); background: var(--paper); font-size: 16px; line-height: 1.5; }
 
   /* ---------- Layout: panel on the left, map on the right ---------- */
-  .app { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; height: 100%; }
-  .panel { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rule); background: var(--paper); }
-  .panel-top { padding: 22px 22px 14px; border-bottom: 1px solid var(--rule); }
-  #map { height: 100%; width: 100%; background: var(--wash); }
+  /* The page grows to its full height (no inner scrolling). When embedded, it tells the
+     host page its height so the frame can match it (see reportHeight below). */
+  .app { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; align-items: stretch; }
+  .panel { border-right: 1px solid var(--rule); background: var(--paper); }
+  .panel-top { padding: 22px 22px 14px; }
+  #map { width: 100%; min-height: 560px; background: var(--wash); }
+  .below { border-top: 1px solid var(--rule); }
+  .list-wrap summary { cursor: pointer; padding: 14px 22px; font-weight: 700; font-size: 0.95rem; color: var(--brand); }
+  .list-wrap summary:hover { background: var(--wash); }
 
   h1 { font-size: 1.375rem; line-height: 1.25; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.005em; }
   .lede { margin: 0 0 16px; color: var(--muted); font-size: 0.95rem; max-width: 40ch; }
@@ -52,7 +57,7 @@
   .count strong { color: var(--ink); }
 
   /* ---------- Hospital list ---------- */
-  .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+  .list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
   .list li { border-bottom: 1px solid var(--rule); }
   .list button { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 12px 22px; cursor: pointer; }
   .list button:hover { background: var(--wash); }
@@ -83,17 +88,16 @@
 
   /* ---------- Narrow screens: stack panel, map, list ---------- */
   @media (max-width: 760px) {
-    .app { display: flex; flex-direction: column; height: auto; }
-    .panel { display: contents; }
-    .panel-top { order: 1; }
-    #map { order: 2; height: 60vh; min-height: 340px; }
-    .list { order: 3; overflow: visible; }
-    .panel-foot { order: 4; }
+    .app { display: flex; flex-direction: column; }
+    .panel { border-right: 0; border-bottom: 1px solid var(--rule); }
+    /* Fixed pixel height: a height based on the window would keep growing as the frame grows. */
+    #map { height: 420px; min-height: 0; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
+<div class="page" id="page">
 <div class="app">
   <aside class="panel" aria-label="Filters and hospital list">
     <div class="panel-top">
@@ -115,12 +119,18 @@
       <p class="count" id="count" aria-live="polite"></p>
     </div>
 
-    <ul class="list" id="list" aria-label="Hospitals shown on the map"></ul>
-
-    <div class="panel-foot" id="foot"></div>
   </aside>
 
   <div id="map" role="region" aria-label="Map of hospitals"></div>
+</div>
+
+<div class="below">
+  <details class="list-wrap" id="listwrap">
+    <summary id="listsummary">List of hospitals shown</summary>
+    <ul class="list" id="list" aria-label="Hospitals shown on the map"></ul>
+  </details>
+  <div class="panel-foot" id="foot"></div>
+</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -152,11 +162,11 @@ const FILTERS = [
   { key: "cog", label: "Children's Oncology Group member",
     help: "Part of the largest network of childhood cancer clinical trials." },
   { key: "pfsMember", label: "Posterior Fossa Society member on staff",
-    help: "At least one clinician or researcher here belongs to the Posterior Fossa Society, the international group focused on cerebellar mutism syndrome. From the Society's own membership records. Membership is open to any interested professional and is not an endorsement of the hospital." },
+    help: "At least one clinician or researcher here belongs to the Posterior Fossa Society, per current records. Not an endorsement of the hospital." },
   { key: "published", label: "Has published its mutism outcomes",
-    help: "The team has published how often children developed cerebellar mutism syndrome after surgery. We link to the study instead of showing a rate, because hospitals measure it differently." },
+    help: "Publishing these results shows that a hospital tracks this outcome." },
   { key: "imri", label: "MRI available during surgery",
-    help: "Helps surgeons check how much tumor was removed. It has not been shown to lower the risk of cerebellar mutism syndrome." },
+    help: "Lets surgeons check for remaining tumor before the operation ends. Hospital studies report fewer repeat operations. Its effect on cerebellar mutism syndrome has not been established." },
   // Turn on once board certification has been verified for most hospitals:
   // { key: "abpns", label: "Pediatric board-certified neurosurgeon",
   //   help: "At least one surgeon is certified by the American Board of Pediatric Neurological Surgery." },
@@ -248,6 +258,8 @@ function applyFilters() {
   document.getElementById("count").innerHTML =
     `Showing <strong>${shown.length}</strong> of ${hospitals.length} hospitals with a pediatric neurosurgery team reviewed so far`;
   renderList(shown);
+  document.getElementById("listsummary").textContent =
+    shown.length ? `List of the ${shown.length} hospitals shown` : "List of hospitals shown";
 
   if (shown.length) {
     const bounds = L.latLngBounds(shown.map(h => [h.lat, h.lon]));
@@ -278,7 +290,32 @@ document.getElementById("list").addEventListener("click", e => {
   const m = markerById[btn.dataset.id];
   map.setView(m.getLatLng(), Math.max(map.getZoom(), 11));
   m.openPopup();
+  scrollToMap();
 });
+
+/* ======================================================================
+   EMBEDDING: keep the frame on the Society website the same height as this page
+   ====================================================================== */
+const embedded = window.parent !== window;
+function tellHost(msg) { if (embedded) window.parent.postMessage(msg, "*"); }
+
+// Send this page's full height to the host page whenever it changes
+// (filters, opening the list, a narrow phone screen, etc.).
+function reportHeight() {
+  tellHost({ type: "pfs-map-height", height: Math.ceil(document.getElementById("page").getBoundingClientRect().height) });
+}
+new ResizeObserver(reportHeight).observe(document.getElementById("page"));
+window.addEventListener("load", reportHeight);
+
+// Leaflet must be told when its box changes size, or tiles draw in the wrong place.
+new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById("map"));
+
+// After a hospital is chosen in the list below the map, bring the map back into view.
+function scrollToMap() {
+  const top = document.getElementById("map").getBoundingClientRect().top;
+  if (embedded) tellHost({ type: "pfs-map-scroll", offset: top + window.scrollY });
+  else window.scrollTo({ top: top + window.scrollY - 10, behavior: "smooth" });
+}
 
 function markCurrent(id) {
   document.querySelectorAll(".list button").forEach(b =>

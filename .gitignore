@@ -1,0 +1,5 @@
+# Never publish the working spreadsheet: it holds internal notes and survey data
+*.xlsx
+~$*
+.DS_Store
+__pycache__/
