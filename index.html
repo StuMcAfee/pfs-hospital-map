@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hospital resources for posterior fossa tumor surgery | Posterior Fossa Society</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  /* ---------- Design tokens ---------- */
+  :root {
+    --ink: #1d2433;
+    --muted: #586476;
+    --paper: #ffffff;
+    --wash: #eef3f7;
+    --rule: #d3dce5;
+    --brand: #16719f;      /* deepened from the Society logo's blue */
+    --pin: #6a2fb5;        /* the logo's cerebellum purple */
+    --pin-soft: #efe7fa;
+    --focus: #16719f;
+    --font: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: var(--font); color: var(--ink); background: var(--paper); font-size: 16px; line-height: 1.5; }
+
+  /* ---------- Layout: panel on the left, map on the right ---------- */
+  .app { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; height: 100%; }
+  .panel { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rule); background: var(--paper); }
+  .panel-top { padding: 22px 22px 14px; border-bottom: 1px solid var(--rule); }
+  #map { height: 100%; width: 100%; background: var(--wash); }
+
+  h1 { font-size: 1.375rem; line-height: 1.25; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.005em; }
+  .lede { margin: 0 0 16px; color: var(--muted); font-size: 0.95rem; max-width: 40ch; }
+
+  fieldset { border: 0; margin: 0; padding: 0; }
+  legend { font-weight: 700; font-size: 0.95rem; margin-bottom: 8px; padding: 0; }
+  .filter { display: grid; grid-template-columns: 22px 1fr; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--rule); }
+  .filter:first-of-type { border-top: 0; }
+  .filter input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--pin); }
+  .filter label { font-weight: 700; font-size: 0.95rem; cursor: pointer; }
+  .filter p { grid-column: 2; margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+
+  .row { display: flex; gap: 12px; align-items: end; margin-top: 12px; flex-wrap: wrap; }
+  .row label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 4px; }
+  select { font: inherit; font-size: 0.95rem; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); min-width: 160px; }
+  .reset { font: inherit; font-size: 0.9rem; background: none; border: 0; color: var(--brand); text-decoration: underline; cursor: pointer; padding: 6px 0; }
+
+  .count { margin: 14px 0 0; font-size: 0.9rem; color: var(--muted); }
+  .count strong { color: var(--ink); }
+
+  /* ---------- Hospital list ---------- */
+  .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+  .list li { border-bottom: 1px solid var(--rule); }
+  .list button { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 12px 22px; cursor: pointer; }
+  .list button:hover { background: var(--wash); }
+  .list button[aria-current="true"] { background: var(--pin-soft); box-shadow: inset 4px 0 0 var(--pin); }
+  .h-name { font-weight: 700; font-size: 0.97rem; display: block; }
+  .h-place { color: var(--muted); font-size: 0.85rem; display: block; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .tag { font-size: 0.75rem; line-height: 1; padding: 4px 7px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink); background: var(--paper); }
+  .empty { padding: 18px 22px; color: var(--muted); }
+
+  .panel-foot { padding: 12px 22px 16px; border-top: 1px solid var(--rule); font-size: 0.8rem; color: var(--muted); }
+  .panel-foot p { margin: 0 0 6px; }
+  a { color: var(--brand); }
+
+  /* ---------- Popups ---------- */
+  .leaflet-container { font-family: var(--font); }
+  .leaflet-popup-content { margin: 14px 16px; font-size: 0.9rem; line-height: 1.45; min-width: 220px; }
+  .pop-name { font-weight: 700; font-size: 1rem; margin: 0 0 2px; }
+  .pop-addr { color: var(--muted); margin: 0 0 10px; }
+  .pop-list { margin: 0 0 10px; padding: 0; list-style: none; }
+  .pop-list li { padding-left: 20px; position: relative; margin-bottom: 4px; }
+  .pop-list li::before { content: ""; position: absolute; left: 2px; top: 0.45em; width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
+  .pop-note { margin: 0 0 8px; }
+  .pop-meta { color: var(--muted); font-size: 0.8rem; margin: 0; }
+
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .list button:focus-visible { outline-offset: -3px; }
+
+  /* ---------- Narrow screens: stack panel, map, list ---------- */
+  @media (max-width: 760px) {
+    .app { display: flex; flex-direction: column; height: auto; }
+    .panel { display: contents; }
+    .panel-top { order: 1; }
+    #map { order: 2; height: 60vh; min-height: 340px; }
+    .list { order: 3; overflow: visible; }
+    .panel-foot { order: 4; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel" aria-label="Filters and hospital list">
+    <div class="panel-top">
+      <h1>Hospital resources for posterior fossa tumor surgery</h1>
+      <p class="lede">Every hospital on this map has a pediatric neurosurgery team. The map starts with those in the Children's Oncology Group. Check more boxes to narrow the list, and select a hospital to see details.</p>
+
+      <fieldset>
+        <legend>Show hospitals that have all of these</legend>
+        <div id="filters"></div>
+      </fieldset>
+
+      <div class="row">
+        <div>
+          <label for="state">State</label>
+          <select id="state"><option value="">All states</option></select>
+        </div>
+        <button type="button" class="reset" id="reset">Reset filters</button>
+      </div>
+      <p class="count" id="count" aria-live="polite"></p>
+    </div>
+
+    <ul class="list" id="list" aria-label="Hospitals shown on the map"></ul>
+
+    <div class="panel-foot" id="foot"></div>
+  </aside>
+
+  <div id="map" role="region" aria-label="Map of hospitals"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="hospitals.js"></script>
+<script>
+/* ======================================================================
+   SETTINGS: the parts you are most likely to edit
+   ====================================================================== */
+const CONFIG = {
+  // Where families send corrections. Replace before launch.
+  correctionsEmail: "CHANGE-ME@posteriorfossasociety.org",
+  // Full "About this map" page on the Society website (disclaimers). Replace before launch.
+  aboutUrl: "https://www.posteriorfossasociety.org/CHANGE-ME",
+  // CARTO basemap key (from carto.com/basemaps/apikey). Paste it between the quotes.
+  cartoKey: "cb1_3vf8_1_82d6acfa82d7f72294c3df2f",
+  // Show which disciplines the Society's members work in (e.g. "Neurosurgery; Rehabilitation").
+  // Leave false until members have been told and given a chance to opt out: at hospitals
+  // with a single member, the discipline can identify the person.
+  showMemberDisciplines: false,
+  // Boxes that start checked when the page opens (and after "Reset filters").
+  defaultFilters: ["cog"],
+};
+
+// Each checkbox. "key" must match a true/false field in hospitals.js.
+// To hide a filter, put // in front of its line. To reorder, move the lines.
+const FILTERS = [
+  { key: "acpnf", label: "Pediatric neurosurgery training center",
+    help: "Accredited to train pediatric neurosurgeons (ACPNF). Research counts these as high-volume centers." },
+  { key: "cog", label: "Children's Oncology Group member",
+    help: "Part of the largest network of childhood cancer clinical trials." },
+  { key: "pfsMember", label: "Posterior Fossa Society member on staff",
+    help: "At least one clinician or researcher here belongs to the Posterior Fossa Society, the international group focused on cerebellar mutism syndrome. From the Society's own membership records. Membership is open to any interested professional and is not an endorsement of the hospital." },
+  { key: "published", label: "Has published its mutism outcomes",
+    help: "The team has published how often children developed cerebellar mutism syndrome after surgery. We link to the study instead of showing a rate, because hospitals measure it differently." },
+  { key: "imri", label: "MRI available during surgery",
+    help: "Helps surgeons check how much tumor was removed. It has not been shown to lower the risk of cerebellar mutism syndrome." },
+  // Turn on once board certification has been verified for most hospitals:
+  // { key: "abpns", label: "Pediatric board-certified neurosurgeon",
+  //   help: "At least one surgeon is certified by the American Board of Pediatric Neurological Surgery." },
+];
+
+// Short labels used on the list tags and in popups.
+const SHORT = { pfsMember: "PF Society member", acpnf: "Training center", cog: "COG member", published: "Publishes outcomes", imri: "MRI during surgery", abpns: "Pediatric board-certified" };
+const LONG  = { acpnf: "Accredited pediatric neurosurgery training center", cog: "Children's Oncology Group member",
+                pfsMember: "Posterior Fossa Society member on staff",
+                published: "Has published its cerebellar mutism outcomes", imri: "MRI available during surgery",
+                abpns: "Pediatric board-certified neurosurgeon" };
+
+/* ======================================================================
+   MAP SETUP (normally no need to edit below this line)
+   ====================================================================== */
+const hospitals = (window.PFS_HOSPITALS || []).slice().sort((a, b) =>
+  a.state.localeCompare(b.state) || a.name.localeCompare(b.name));
+const activeKeys = FILTERS.map(f => f.key);
+
+// Escape text before putting it into HTML, so names with apostrophes etc. display safely.
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Create the map. Scroll-wheel zoom is off until the map is clicked, so the
+// embedded page does not trap scrolling on the Society website.
+const map = L.map("map", { scrollWheelZoom: false, zoomSnap: 0.5 });
+map.on("click focus", () => map.scrollWheelZoom.enable());
+map.on("mouseout blur", () => map.scrollWheelZoom.disable());
+// The key is added to every tile request; without it CARTO stamps "API KEY REQUIRED" on the tiles.
+const tileUrl = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" +
+  (CONFIG.cartoKey ? "?key=" + encodeURIComponent(CONFIG.cartoKey) : "");
+L.tileLayer(tileUrl, {
+  subdomains: "abcd", maxZoom: 18,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+}).addTo(map);
+
+// One pin per hospital, built once and then shown or hidden by the filters.
+const pinStyle = { radius: 8, color: "#ffffff", weight: 2, fillColor: getComputedStyle(document.documentElement).getPropertyValue("--pin").trim(), fillOpacity: 1 };
+const pins = L.layerGroup().addTo(map);
+const markerById = {};
+hospitals.forEach(h => {
+  const m = L.circleMarker([h.lat, h.lon], pinStyle).bindPopup(popupHtml(h), { maxWidth: 300 });
+  m.on("popupopen", () => markCurrent(h.id));
+  m.on("popupclose", () => markCurrent(null));
+  markerById[h.id] = m;
+});
+
+// Build the popup text for one hospital. Only credentials the hospital has are listed.
+function popupHtml(h) {
+  const creds = Object.keys(LONG).filter(k => h[k] && (activeKeys.includes(k) || k === "abpns"));
+  let html = `<p class="pop-name">${esc(h.name)}</p>`;
+  html += `<p class="pop-addr">${esc(h.street)}<br>${esc(h.city)}, ${esc(h.state)} ${esc(h.zip)}</p>`;
+  if (creds.length) html += `<ul class="pop-list">${creds.map(k => `<li>${esc(LONG[k])}</li>`).join("")}</ul>`;
+  if (h.pfsMember && CONFIG.showMemberDisciplines && h.pfsDisciplines)
+    html += `<p class="pop-note">Society members here work in: ${esc(h.pfsDisciplines.split("; ").join(", "))}.</p>`;
+  if (h.note) html += `<p class="pop-note">${esc(h.note)}</p>`;
+  if (h.published && h.citationLink) html += `<p class="pop-note"><a href="${esc(h.citationLink)}" target="_blank" rel="noopener">Read the published study</a></p>`;
+  html += `<p class="pop-meta">Information last checked ${esc(h.lastVerified)}. <a href="mailto:${esc(CONFIG.correctionsEmail)}?subject=${encodeURIComponent("Correction: " + h.name)}">Report a correction</a></p>`;
+  return html;
+}
+
+// Draw the checkboxes from the FILTERS list.
+const filterBox = document.getElementById("filters");
+FILTERS.forEach(f => {
+  const div = document.createElement("div");
+  div.className = "filter";
+  div.innerHTML = `<input type="checkbox" id="f-${f.key}" value="${f.key}" aria-describedby="h-${f.key}">
+    <label for="f-${f.key}">${esc(f.label)}</label><p id="h-${f.key}">${esc(f.help)}</p>`;
+  filterBox.appendChild(div);
+});
+
+// Fill the state menu with the states that have at least one hospital.
+const stateSel = document.getElementById("state");
+[...new Set(hospitals.map(h => h.state))].sort().forEach(s => stateSel.add(new Option(s, s)));
+
+// Footer: disclaimer, correction link, data date.
+document.getElementById("foot").innerHTML =
+  `<p>Hospitals not shown may still provide excellent care. Absence from this map is not a judgment about quality. <a href="${esc(CONFIG.aboutUrl)}" target="_top">About this map</a></p>
+   <p>See an error or want your hospital reviewed? <a href="mailto:${esc(CONFIG.correctionsEmail)}">Contact us</a>. Data updated ${esc(window.PFS_DATA_DATE || "")}.</p>`;
+
+// Core logic: show hospitals that meet ALL checked boxes and the chosen state.
+function applyFilters() {
+  const checked = FILTERS.map(f => f.key).filter(k => document.getElementById("f-" + k).checked);
+  const state = stateSel.value;
+  const shown = hospitals.filter(h => checked.every(k => h[k]) && (!state || h.state === state));
+
+  pins.clearLayers();
+  shown.forEach(h => pins.addLayer(markerById[h.id]));
+
+  document.getElementById("count").innerHTML =
+    `Showing <strong>${shown.length}</strong> of ${hospitals.length} hospitals with a pediatric neurosurgery team reviewed so far`;
+  renderList(shown);
+
+  if (shown.length) {
+    const bounds = L.latLngBounds(shown.map(h => [h.lat, h.lon]));
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: state ? 10 : 6 });
+  }
+}
+
+// The list under the filters mirrors the pins, for scanning and for screen readers.
+function renderList(shown) {
+  const list = document.getElementById("list");
+  if (!shown.length) {
+    list.innerHTML = `<li class="empty">No reviewed hospitals match every checked item. Try unchecking a box or choosing another state.</li>`;
+    return;
+  }
+  list.innerHTML = shown.map(h => {
+    const tags = activeKeys.filter(k => h[k]).map(k => `<span class="tag">${esc(SHORT[k])}</span>`).join("");
+    return `<li><button type="button" data-id="${esc(h.id)}">
+      <span class="h-name">${esc(h.name)}</span>
+      <span class="h-place">${esc(h.city)}, ${esc(h.state)}</span>
+      ${tags ? `<span class="tags">${tags}</span>` : ""}</button></li>`;
+  }).join("");
+}
+
+// Clicking a hospital in the list zooms to its pin and opens its details.
+document.getElementById("list").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-id]");
+  if (!btn) return;
+  const m = markerById[btn.dataset.id];
+  map.setView(m.getLatLng(), Math.max(map.getZoom(), 11));
+  m.openPopup();
+});
+
+function markCurrent(id) {
+  document.querySelectorAll(".list button").forEach(b =>
+    b.setAttribute("aria-current", b.dataset.id === id ? "true" : "false"));
+}
+
+filterBox.addEventListener("change", applyFilters);
+stateSel.addEventListener("change", applyFilters);
+document.getElementById("reset").addEventListener("click", () => {
+  setDefaults();
+  applyFilters();
+});
+
+// Check the default boxes (CONFIG.defaultFilters) and clear everything else.
+function setDefaults() {
+  FILTERS.forEach(f => { document.getElementById("f-" + f.key).checked = CONFIG.defaultFilters.includes(f.key); });
+  stateSel.value = "";
+}
+
+setDefaults();
+applyFilters();
+</script>
+</body>
+</html>
