@@ -62,6 +62,10 @@ for r in rows:
         "pfsDisciplines": r.get("PFS_member_disciplines") or "",
         "citation": r.get("Published_citation") or "",
         "citationLink": r.get("Published_link") or "",
+        "studySummary": r.get("CMS_study_summary") or "",
+        "rateText": r.get("CMS_rate_display") or "",
+        "research": yes(r.get("Research_CMS")),
+        "researchLink": (r.get("Research_evidence_URL") or "") if yes(r.get("Research_CMS")) else "",
         "note": r.get("Public_note") or "",
         "lastVerified": last.strftime("%Y-%m-%d") if hasattr(last, "strftime") else str(last or ""),
     })

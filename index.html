@@ -38,7 +38,9 @@
   .list-wrap summary:hover { background: var(--wash); }
 
   h1 { font-size: 1.375rem; line-height: 1.25; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.005em; }
-  .lede { margin: 0 0 16px; color: var(--muted); font-size: 0.95rem; max-width: 40ch; }
+  .lede { margin: 0 0 4px; color: var(--muted); font-size: 0.95rem; max-width: 40ch; }
+  .updated { margin: 0 0 16px; color: var(--muted); font-size: 0.85rem; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   fieldset { border: 0; margin: 0; padding: 0; }
   legend { font-weight: 700; font-size: 0.95rem; margin-bottom: 8px; padding: 0; }
@@ -82,6 +84,9 @@
   .pop-list li::before { content: ""; position: absolute; left: 2px; top: 0.45em; width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
   .pop-note { margin: 0 0 8px; }
   .pop-meta { color: var(--muted); font-size: 0.8rem; margin: 0; }
+  .pop-study { border-top: 1px solid var(--rule); padding-top: 8px; margin: 0 0 8px; }
+  .pop-study-head { font-weight: 700; margin: 0 0 4px; }
+  .pop-caveat { color: var(--muted); }
 
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   .list button:focus-visible { outline-offset: -3px; }
@@ -101,8 +106,10 @@
 <div class="app">
   <aside class="panel" aria-label="Filters and hospital list">
     <div class="panel-top">
-      <h1>Hospital resources for posterior fossa tumor surgery</h1>
-      <p class="lede">Every hospital on this map has a pediatric neurosurgery team. The map starts with those in the Children's Oncology Group. Check more boxes to narrow the list, and select a hospital to see details.</p>
+      <!-- The website shows its own header above the map, so this heading is for screen readers only. -->
+      <h1 class="sr-only">Hospital resources for posterior fossa tumor surgery</h1>
+      <p class="lede">Hospitals on this map have a pediatric neurosurgery team. The default map shows centers associated with the Children's Oncology Group. Check more boxes to narrow the list, and select a hospital to see details.</p>
+      <p class="updated" id="updated"></p>
 
       <fieldset>
         <legend>Show hospitals that have all of these</legend>
@@ -143,7 +150,7 @@ const CONFIG = {
   // Where families send corrections. Replace before launch.
   correctionsEmail: "info@posteriorfossasociety.org",
   // Full "About this map" page on the Society website (disclaimers). Replace before launch.
-  aboutUrl: "https://www.posteriorfossasociety.org/hospital-map-us-about",
+  aboutUrl: "https://www.posteriorfossasociety.org/CHANGE-ME",
   // CARTO basemap key (from carto.com/basemaps/apikey). Paste it between the quotes.
   cartoKey: "cb1_3vf8_1_82d6acfa82d7f72294c3df2f",
   // Show which disciplines the Society's members work in (e.g. "Neurosurgery; Rehabilitation").
@@ -157,26 +164,30 @@ const CONFIG = {
 // Each checkbox. "key" must match a true/false field in hospitals.js.
 // To hide a filter, put // in front of its line. To reorder, move the lines.
 const FILTERS = [
-  { key: "acpnf", label: "Pediatric neurosurgery training center",
-    help: "Accredited to train pediatric neurosurgeons (ACPNF). Research counts these as high-volume centers." },
+  // Listed in order of importance; this is the order shown on the page.
   { key: "cog", label: "Children's Oncology Group member",
     help: "Part of the largest network of childhood cancer clinical trials." },
   { key: "pfsMember", label: "Posterior Fossa Society member on staff",
-    help: "At least one clinician or researcher here belongs to the Posterior Fossa Society, per current records. Shows engagement with outcomes research, not an endorsement of the hospital." },
-  { key: "published", label: "Has published its mutism outcomes",
-    help: "Publishing these results shows that a hospital tracks this outcome." },
+    help: "At least one clinician or researcher here belongs to the Posterior Fossa Society, per current records. Not an endorsement of the hospital." },
   { key: "imri", label: "MRI available during surgery",
-    help: "Lets surgeons check for remaining tumor before the operation ends. Hospital studies report fewer repeat operations. Its effect on cerebellar mutism syndrome has not been established." },
+    help: "Lets surgeons check for remaining tumor before the operation ends. Hospital studies report fewer repeat operations. Its direct effect on the risk of posterior fossa syndrome has not been established." },
+  { key: "research", label: "Has published research on posterior fossa syndrome in its patients",
+    help: "Shows the hospital recognizes the syndrome and tracks its symptoms closely enough to study them." },
+  { key: "acpnf", label: "Pediatric neurosurgery training center",
+    help: "Accredited to train pediatric neurosurgeons (ACPNF). Research counts these as high-volume centers." },
+  { key: "published", label: "Has published institutional rates of posterior fossa syndrome",
+    help: "Rates measured with a standard definition. Shows the hospital tracks this outcome closely and transparently." },
   // Turn on once board certification has been verified for most hospitals:
   // { key: "abpns", label: "Pediatric board-certified neurosurgeon",
   //   help: "At least one surgeon is certified by the American Board of Pediatric Neurological Surgery." },
 ];
 
 // Short labels used on the list tags and in popups.
-const SHORT = { pfsMember: "PF Society member", acpnf: "Training center", cog: "COG member", published: "Publishes outcomes", imri: "MRI during surgery", abpns: "Pediatric board-certified" };
-const LONG  = { acpnf: "Accredited pediatric neurosurgery training center", cog: "Children's Oncology Group member",
-                pfsMember: "Posterior Fossa Society member on staff",
-                published: "Has published its cerebellar mutism outcomes", imri: "MRI available during surgery",
+const SHORT = { cog: "COG member", pfsMember: "PF Society member", imri: "MRI during surgery", research: "PFS research", acpnf: "Training center", published: "Published PFS rates", abpns: "Pediatric board-certified" };
+const LONG  = { cog: "Children's Oncology Group member", pfsMember: "Posterior Fossa Society member on staff",
+                imri: "MRI available during surgery", research: "Has published research on posterior fossa syndrome in its patients",
+                acpnf: "Accredited pediatric neurosurgery training center",
+                published: "Has published institutional rates of posterior fossa syndrome",
                 abpns: "Pediatric board-certified neurosurgeon" };
 
 /* ======================================================================
@@ -222,7 +233,19 @@ function popupHtml(h) {
   if (h.pfsMember && CONFIG.showMemberDisciplines && h.pfsDisciplines)
     html += `<p class="pop-note">Society members here work in: ${esc(h.pfsDisciplines.split("; ").join(", "))}.</p>`;
   if (h.note) html += `<p class="pop-note">${esc(h.note)}</p>`;
-  if (h.published && h.citationLink) html += `<p class="pop-note"><a href="${esc(h.citationLink)}" target="_blank" rel="noopener">Read the published study</a></p>`;
+  if (h.studySummary) {
+    // Plain-language summary of the hospital's own study, the rate it reports (only for the rates
+    // badge, which requires the 2016 standard definition), and a link to the paper.
+    let study = "";
+    if (h.studySummary) study += `<p class="pop-note">${esc(h.studySummary)}</p>`;
+    if (h.rateText) study += `<p class="pop-note"><strong>Reported rate:</strong> ${esc(h.rateText)}. <span class="pop-caveat">Rates depend on which children a hospital treats and how closely it checks, so they are hard to compare between hospitals.</span></p>`;
+    if (h.citationLink) study += `<p class="pop-note"><a href="${esc(h.citationLink)}" target="_blank" rel="noopener">Read the study</a></p>`;
+    const head = h.published ? "Published rates of posterior fossa syndrome" : "Published posterior fossa syndrome research";
+    if (study) html += `<div class="pop-study"><p class="pop-study-head">${head}</p>${study}</div>`;
+  } else if (h.research && h.researchLink) {
+    // Research badge without a written summary: link to a qualifying study.
+    html += `<div class="pop-study"><p class="pop-study-head">Published posterior fossa syndrome research</p><p class="pop-note"><a href="${esc(h.researchLink)}" target="_blank" rel="noopener">Read a study</a></p></div>`;
+  }
   html += `<p class="pop-meta">Information last checked ${esc(h.lastVerified)}. <a href="mailto:${esc(CONFIG.correctionsEmail)}?subject=${encodeURIComponent("Correction: " + h.name)}">Report a correction</a></p>`;
   return html;
 }
@@ -334,6 +357,13 @@ function setDefaults() {
   FILTERS.forEach(f => { document.getElementById("f-" + f.key).checked = CONFIG.defaultFilters.includes(f.key); });
   stateSel.value = "";
 }
+
+// "(Updated September, 2026)" under the introduction, taken from the date hospitals.js was built.
+(function () {
+  const d = window.PFS_DATA_DATE ? new Date(window.PFS_DATA_DATE + "T12:00:00") : null;
+  if (d && !isNaN(d)) document.getElementById("updated").textContent =
+    "(Updated " + d.toLocaleString("en-US", { month: "long" }) + ", " + d.getFullYear() + ")";
+})();
 
 setDefaults();
 applyFilters();
