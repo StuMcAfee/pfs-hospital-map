@@ -238,7 +238,7 @@ function popupHtml(h) {
     // badge, which requires the 2016 standard definition), and a link to the paper.
     let study = "";
     if (h.studySummary) study += `<p class="pop-note">${esc(h.studySummary)}</p>`;
-    if (h.rateText) study += `<p class="pop-note"><strong>Reported rate:</strong> ${esc(h.rateText)}. <span class="pop-caveat">Rates depend on which children a hospital treats and how closely it checks, so they are hard to compare between hospitals.</span></p>`;
+    if (h.rateText) study += `<p class="pop-note"><strong>Reported rate:</strong> ${esc(h.rateText)}. <span class="pop-caveat">Rates may vary depending on who evaluates each patient and which tumor types a hospital treats, so rates are hard to directly compare between hospitals.</span></p>`;
     if (h.citationLink) study += `<p class="pop-note"><a href="${esc(h.citationLink)}" target="_blank" rel="noopener">Read the study</a></p>`;
     const head = h.published ? "Published rates of posterior fossa syndrome" : "Published posterior fossa syndrome research";
     if (study) html += `<div class="pop-study"><p class="pop-study-head">${head}</p>${study}</div>`;
